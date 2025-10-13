@@ -216,6 +216,9 @@ DESCRIPCIÓN:
     local extracted_type=$(echo "$refined_content" | grep -i "^TIPO:" | sed 's/^TIPO:[[:space:]]*//' | sed 's/^[[:space:]]*//')
     local extracted_priority=$(echo "$refined_content" | grep -i "^PRIORIDAD:" | sed 's/^PRIORIDAD:[[:space:]]*//' | sed 's/^[[:space:]]*//')
     
+    # Extraer la descripción limpia (sin los prefijos TÍTULO, TIPO, PRIORIDAD, DESCRIPCIÓN)
+    local clean_description=$(echo "$refined_content" | sed '/^TÍTULO:/d' | sed '/^TIPO:/d' | sed '/^PRIORIDAD:/d' | sed 's/^DESCRIPCIÓN:[[:space:]]*//' | sed '/^$/d' | sed 's/^[[:space:]]*//')
+    
     # Valores por defecto si no se extraen correctamente
     extracted_summary=${extracted_summary:-"Tarea generada por IA"}
     extracted_type=${extracted_type:-"Task"}
@@ -226,7 +229,7 @@ DESCRIPCIÓN:
     
     # Convertir la respuesta de OpenAI a formato YAML
     echo "summary: \"$extracted_summary\"" > "$output_file"
-    echo "description: \"$refined_content\"" >> "$output_file"
+    echo "description: \"$clean_description\"" >> "$output_file"
     echo "issue_type: \"$extracted_type\"" >> "$output_file"
     echo "priority: \"$extracted_priority\"" >> "$output_file"
     

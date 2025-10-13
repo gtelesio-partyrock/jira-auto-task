@@ -140,14 +140,27 @@ read_yaml_value() {
 # Función para leer la descripción multilínea de un archivo YAML
 read_yaml_description() {
     local file=$1
-    # Usar grep -A para obtener todas las líneas después de description:
-    # Luego procesar para extraer solo el contenido de la descripción
-    grep -A 100 "^description:" "$file" | \
+    write_log "DEBUG" "Leyendo descripción del archivo: $file"
+    
+    # Usar yq para extraer la descripción del YAML
+    local raw_description=$(yq eval '.description' "$file" 2>/dev/null || \
+    # Fallback usando sed si yq falla
+    sed -n '/^description:/,/^[a-zA-Z_][a-zA-Z0-9_]*:/p' "$file" | \
     sed '1s/^description:[[:space:]]*"//' | \
-    sed '/^[a-zA-Z_][a-zA-Z0-9_]*:/q' | \
-    sed '$d' | \
-    sed 's/^[[:space:]]*//' | \
-    sed '$s/"$//'
+    sed '$s/"$//' | \
+    sed '/^[a-zA-Z_][a-zA-Z0-9_]*:/d')
+    
+    # Eliminar prefijos de OpenAI: TÍTULO:, TIPO:, PRIORIDAD:, DESCRIPCIÓN:
+    raw_description=$(echo "$raw_description" | \
+    sed 's/^TÍTULO:[[:space:]]*//' | \
+    sed 's/^TIPO:[[:space:]]*//' | \
+    sed 's/^PRIORIDAD:[[:space:]]*//' | \
+    sed 's/^DESCRIPCIÓN:[[:space:]]*//' | \
+    # Eliminar líneas vacías que quedaron después de eliminar prefijos
+    sed '/^$/d')
+    
+    write_log "DEBUG" "Descripción raw extraída: $raw_description"
+    echo "$raw_description"
 }
 
 # Función para crear una tarea en Jira
@@ -165,6 +178,9 @@ create_jira_issue() {
     issue_type=${issue_type:-"Task"}
     priority=${priority:-"Medium"}
     description=${description:-"Sin descripción"}
+    
+    write_log "DEBUG" "Datos extraídos - Summary: $summary | Type: $issue_type | Priority: $priority"
+    write_log "DEBUG" "Descripción completa: $description"
     
     if [ -z "$summary" ]; then
         print_error "El archivo ${task_name} no tiene un 'summary' válido"
@@ -186,8 +202,12 @@ create_jira_issue() {
     TEMP_FILE=$(mktemp)
     echo "$description" > "$TEMP_FILE"
     
+    write_log "DEBUG" "Archivo temporal creado: $TEMP_FILE"
+    write_log "DEBUG" "Contenido del archivo temporal:"
+    write_log "DEBUG" "$(cat "$TEMP_FILE")"
+
     DESCRIPTION_ADF='{"type":"doc","version":1,"content":['
-    
+
     # Procesar cada línea del archivo temporal
     first_line=true
     while IFS= read -r line; do
@@ -200,12 +220,17 @@ create_jira_issue() {
         # Escapar comillas en la línea
         escaped_line=$(echo "$line" | sed 's/"/\\"/g')
         
+        write_log "DEBUG" "Procesando línea: $line"
+        write_log "DEBUG" "Línea escapada: $escaped_line"
+        
         # Agregar párrafo ADF
         DESCRIPTION_ADF="${DESCRIPTION_ADF}{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"${escaped_line}\"}]}"
     done < "$TEMP_FILE"
-    
+
     DESCRIPTION_ADF="${DESCRIPTION_ADF}]}"
     
+    write_log "DEBUG" "ADF generado: $DESCRIPTION_ADF"
+
     # Limpiar archivo temporal
     rm "$TEMP_FILE"
     
