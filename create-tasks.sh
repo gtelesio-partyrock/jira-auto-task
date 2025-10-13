@@ -140,7 +140,6 @@ read_yaml_value() {
 # Función para leer la descripción multilínea de un archivo YAML
 read_yaml_description() {
     local file=$1
-    write_log "DEBUG" "Leyendo descripción del archivo: $file"
     
     # Usar yq para extraer la descripción del YAML
     local raw_description=$(yq eval '.description' "$file" 2>/dev/null || \
@@ -159,7 +158,6 @@ read_yaml_description() {
     # Eliminar líneas vacías que quedaron después de eliminar prefijos
     sed '/^$/d')
     
-    write_log "DEBUG" "Descripción raw extraída: $raw_description"
     echo "$raw_description"
 }
 
@@ -197,16 +195,15 @@ create_jira_issue() {
     # Escapar comillas en el summary
     summary_escaped=$(echo "$summary" | sed 's/"/\\"/g')
     
-    # Crear descripción en formato ADF - método con archivo temporal
-    # Usar archivo temporal para manejar correctamente los saltos de línea
+    # Crear descripción en formato ADF con saltos de línea mejorados
     TEMP_FILE=$(mktemp)
     echo "$description" > "$TEMP_FILE"
     
-
     DESCRIPTION_ADF='{"type":"doc","version":1,"content":['
 
     # Procesar cada línea del archivo temporal
     first_paragraph=true
+    previous_was_list_item=false
     
     while IFS= read -r line; do
         # Si la línea no está vacía, crear un párrafo
@@ -217,18 +214,35 @@ create_jira_issue() {
                 DESCRIPTION_ADF="${DESCRIPTION_ADF},"
             fi
             
+            # Detectar si es un elemento de lista
+            local is_list_item=false
+            if [[ "$line" =~ ^[[:space:]]*[-*] ]] || [[ "$line" =~ ^[[:space:]]*[0-9]+\. ]]; then
+                is_list_item=true
+            fi
+            
             # Escapar comillas en la línea
             escaped_line=$(echo "$line" | sed 's/"/\\"/g')
             
+            # Si es un elemento de lista, agregar párrafo de separación antes
+            if [ "$is_list_item" = true ]; then
+                DESCRIPTION_ADF="${DESCRIPTION_ADF},{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"────────────────────────────────────────\"}]}"
+            fi
             
             # Agregar párrafo ADF
             DESCRIPTION_ADF="${DESCRIPTION_ADF}{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"${escaped_line}\"}]}"
+            
+            # Si es un elemento de lista, agregar párrafo de separación después
+            if [ "$is_list_item" = true ]; then
+                DESCRIPTION_ADF="${DESCRIPTION_ADF},{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"────────────────────────────────────────\"}]}"
+            fi
+            
+            # Actualizar estado
+            previous_was_list_item=$is_list_item
         fi
     done < "$TEMP_FILE"
 
     DESCRIPTION_ADF="${DESCRIPTION_ADF}]}"
     
-
     # Limpiar archivo temporal
     rm "$TEMP_FILE"
     
