@@ -202,34 +202,32 @@ create_jira_issue() {
     TEMP_FILE=$(mktemp)
     echo "$description" > "$TEMP_FILE"
     
-    write_log "DEBUG" "Archivo temporal creado: $TEMP_FILE"
-    write_log "DEBUG" "Contenido del archivo temporal:"
-    write_log "DEBUG" "$(cat "$TEMP_FILE")"
 
     DESCRIPTION_ADF='{"type":"doc","version":1,"content":['
 
     # Procesar cada línea del archivo temporal
-    first_line=true
+    first_paragraph=true
+    
     while IFS= read -r line; do
-        if [ "$first_line" = true ]; then
-            first_line=false
-        else
-            DESCRIPTION_ADF="${DESCRIPTION_ADF},"
+        # Si la línea no está vacía, crear un párrafo
+        if [ -n "$line" ]; then
+            if [ "$first_paragraph" = true ]; then
+                first_paragraph=false
+            else
+                DESCRIPTION_ADF="${DESCRIPTION_ADF},"
+            fi
+            
+            # Escapar comillas en la línea
+            escaped_line=$(echo "$line" | sed 's/"/\\"/g')
+            
+            
+            # Agregar párrafo ADF
+            DESCRIPTION_ADF="${DESCRIPTION_ADF}{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"${escaped_line}\"}]}"
         fi
-        
-        # Escapar comillas en la línea
-        escaped_line=$(echo "$line" | sed 's/"/\\"/g')
-        
-        write_log "DEBUG" "Procesando línea: $line"
-        write_log "DEBUG" "Línea escapada: $escaped_line"
-        
-        # Agregar párrafo ADF
-        DESCRIPTION_ADF="${DESCRIPTION_ADF}{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"${escaped_line}\"}]}"
     done < "$TEMP_FILE"
 
     DESCRIPTION_ADF="${DESCRIPTION_ADF}]}"
     
-    write_log "DEBUG" "ADF generado: $DESCRIPTION_ADF"
 
     # Limpiar archivo temporal
     rm "$TEMP_FILE"
