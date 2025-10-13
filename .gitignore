@@ -1,0 +1,17 @@
+# Ignorar archivo de configuración con credenciales
+config.yml
+
+# Ignorar contenido de carpetas de tareas
+unprocessed/*
+!unprocessed/.gitkeep
+processed/*
+!processed/.gitkeep
+
+# Logs
+logs/*.log
+!logs/.gitkeep
+
+# Archivos temporales
+*.tmp
+.DS_Store
+

@@ -1,0 +1,27 @@
+# Ejemplo de configuración de Jira API
+# Copia este archivo a 'config.yml' y completa con tus credenciales
+
+jira:
+  url: "https://tu-dominio.atlassian.net"
+  email: "tu-email@ejemplo.com"
+  api_token: "tu-token-de-api-aqui"
+  project_key: "PROJ"  # Clave del proyecto donde se crearán las tareas
+
+# Las tareas se leen desde archivos individuales en la carpeta 'unprocessed/{email}/'
+# Cada archivo .yml representa una tarea con el siguiente formato:
+#
+#   summary: "Nombre de la tarea"
+#   description: "Descripción detallada"
+#   issue_type: "Task"  # Task, Story, Bug, Epic, etc.
+#   priority: "Medium"  # Highest, High, Medium, Low, Lowest
+#
+# Ejemplo de estructura:
+#   unprocessed/
+#   └── tu-email@ejemplo.com/
+#       ├── implementar-login.yml
+#       ├── crear-dashboard.yml
+#       └── corregir-bug.yml
+#
+# Después de procesarse, los archivos se mueven a 'processed/{email}/'
+# con un timestamp agregado al nombre: archivo-2025-10-13-14-30-45.yml
+
