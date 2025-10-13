@@ -2,10 +2,12 @@
 config.yml
 
 # Ignorar contenido de carpetas de tareas
-unprocessed/*
-!unprocessed/.gitkeep
-processed/*
-!processed/.gitkeep
+task/unprocessed/*
+!task/unprocessed/.gitkeep
+task/processed/*
+!task/processed/.gitkeep
+task/without-formatting/*
+!task/without-formatting/.gitkeep
 
 # Logs
 logs/*.log

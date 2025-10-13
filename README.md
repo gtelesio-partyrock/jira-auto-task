@@ -1,221 +1,273 @@
 # 🚀 Jira Auto Task Creator
 
-Script bash para crear tareas en Jira automáticamente desde archivos YAML individuales organizados por usuario.
+Sistema completo para la gestión automatizada de tareas en Jira con integración de OpenAI para refinamiento de requerimientos.
 
 ## 📋 Características
 
-- ✅ Creación automática de tareas en Jira
-- 🔐 Configuración segura mediante archivo YAML
-- 👤 Organización de tareas por usuario (email)
-- 📁 Sistema de carpetas unprocessed/processed
-- 📝 Sistema de logs automático (un archivo por día)
-- 🎨 CLI con colores (teal, verde, rojo, naranja)
-- 📊 Resumen de tareas creadas
-- ⚡ Soporte para múltiples tipos de issues (Task, Story, Bug, etc.)
-- 🎯 Configuración de prioridades
+- ✅ **Creación automática de tareas en Jira** desde archivos YAML
+- 🤖 **Refinamiento con OpenAI** para mejorar descripciones de tareas
+- 🔐 **Configuración segura** mediante archivo YAML organizado
+- 👤 **Organización por usuario** (email) en carpetas separadas
+- 📁 **Sistema de carpetas** unprocessed/processed/without-formatting
+- 📝 **Sistema de logs automático** (un archivo por día)
+- 🎨 **CLI con colores** (teal, verde, rojo, naranja)
+- 📊 **Resumen detallado** de operaciones realizadas
+- ⚡ **Soporte completo** para tipos de issues (Task, Story, Bug, Epic, etc.)
+- 🎯 **Configuración de prioridades** personalizable
+
+## 🏗️ Estructura del Proyecto
+
+```
+jira-auto-task/
+├── 📁 task/                          # Carpeta principal de tareas
+│   ├── 📁 unprocessed/               # Tareas pendientes de procesar
+│   │   └── 📁 {email}/               # Organizadas por usuario
+│   │       ├── 📄 tarea-1.yml        # Archivos de tareas individuales
+│   │       └── 📄 tarea-2.yml
+│   ├── 📁 processed/                 # Tareas ya creadas en Jira
+│   │   └── 📁 {email}/               # Con timestamp en el nombre
+│   │       ├── 📄 tarea-1-2025-10-13-14-30-45.yml
+│   │       └── 📄 tarea-2-2025-10-13-14-31-12.yml
+│   └── 📁 without-formatting/        # Tareas para refinar con OpenAI
+│       └── 📁 {email}/               # Descripciones simples
+│           └── 📄 tarea-simple.yml
+├── 📁 logs/                          # Logs diarios del sistema
+│   ├── 📄 2025-10-13.log
+│   └── 📄 2025-10-14.log
+├── 📄 initialize.sh                  # Script de inicialización
+├── 📄 create-tasks.sh                # Script principal para crear tareas
+├── 📄 refine-tasks.sh                # Script para refinar con OpenAI
+├── 📄 config.yml                     # Configuración principal (credenciales)
+├── 📄 config-example.yml             # Ejemplo de configuración
+└── 📄 README.md                      # Este archivo
+```
+
+### 📂 Explicación de Carpetas
+
+- **`task/unprocessed/`**: Contiene tareas pendientes de ser creadas en Jira. Cada usuario tiene su subcarpeta.
+- **`task/processed/`**: Archivos de tareas ya procesadas, movidos automáticamente con timestamp.
+- **`task/without-formatting/`**: Tareas con solo descripción simple para refinar con OpenAI (la IA genera automáticamente summary, tipo y prioridad).
+- **`logs/`**: Archivos de log diarios con toda la actividad del sistema.
+
+### 🔧 Scripts Disponibles
+
+- **`initialize.sh`**: Script de inicialización que verifica e instala todas las dependencias necesarias.
+- **`create-tasks.sh`**: Script principal que lee tareas de `unprocessed/` y las crea en Jira.
+- **`refine-tasks.sh`**: Refina tareas de `without-formatting/` usando OpenAI y las guarda en `unprocessed/`.
 
 ## 🛠️ Requisitos
 
 - Bash shell
 - `curl` (incluido en macOS por defecto)
+- `jq` (para parsing de JSON)
 - Cuenta de Jira con acceso a la API
 - Token de API de Jira
+- API Key de OpenAI (opcional, para refinamiento)
+
+## 🚀 Inicio Rápido
+
+### 1. Inicialización Automática
+
+Ejecuta el script de inicialización para verificar e instalar todas las dependencias:
+
+```bash
+./initialize.sh
+```
+
+Este script:
+- ✅ Verifica e instala todas las dependencias necesarias
+- 📁 Crea la estructura de directorios requerida
+- ⚙️ Configura los archivos de configuración
+- 🔧 Otorga permisos de ejecución a los scripts
+- 🌐 Verifica la conectividad a las APIs
+- 📋 Muestra un resumen completo del sistema
 
 ## 📝 Configuración
 
-### 1. Generar un API Token de Jira
+### 1. Generar credenciales
 
+#### API Token de Jira
 1. Ve a [https://id.atlassian.com/manage-profile/security/api-tokens](https://id.atlassian.com/manage-profile/security/api-tokens)
 2. Haz clic en "Create API token"
 3. Dale un nombre (ej: "Auto Task Creator")
 4. Copia el token generado
 
+#### API Key de OpenAI (opcional)
+1. Ve a [https://platform.openai.com/api-keys](https://platform.openai.com/api-keys)
+2. Crea una nueva API key
+3. Copia la clave generada
+
 ### 2. Configurar el archivo `config.yml`
 
-Edita el archivo `config.yml` con tus credenciales:
+Copia `config-example.yml` a `config.yml` y completa con tus credenciales:
 
 ```yaml
+# Configuración de APIs y servicios
+# =================================
+
+# Configuración de Jira
 jira:
   url: "https://tu-dominio.atlassian.net"
   email: "tu-email@ejemplo.com"
-  api_token: "tu-token-de-api-aqui"
-  project_key: "PROJ"  # Clave del proyecto donde se crearán las tareas
+  api_token: "tu-token-de-api-de-jira-aqui"
+  project_key: "PROJ"
 
-# Las tareas se leen desde la carpeta 'unprocessed/{email}/'
-# Después de procesarse, se mueven a 'processed/{email}/'
-```
+# Configuración de OpenAI (opcional)
+openai:
+  api_key: "tu-api-key-de-openai-aqui"
+  model: "gpt-4"
+  max_tokens: 2000
+  temperature: 0.7
 
-### 3. Crear archivos de tareas
-
-El script organiza las tareas por usuario usando el email del `config.yml`. Crea archivos `.yml` en la carpeta `unprocessed/{tu-email}/`:
-
-**Estructura de carpetas:**
-```
-jira-auto-task/
-├── unprocessed/
-│   └── tu-email@ejemplo.com/
-│       ├── tarea-1.yml
-│       ├── tarea-2.yml
-│       └── bug-critico.yml
-├── processed/
-│   └── tu-email@ejemplo.com/
-│       ├── tarea-1-2025-10-13-14-30-45.yml
-│       └── tarea-2-2025-10-13-14-31-50.yml
-├── logs/
-│   ├── 2025-10-13.log
-│   └── 2025-10-14.log
-└── config.yml
-```
-
-> **Nota:** Los archivos procesados incluyen un timestamp (fecha y hora) al final del nombre para llevar registro de cuándo se crearon en Jira.
-
-**Ejemplo de archivo de tarea** (`unprocessed/tu-email@ejemplo.com/implementar-login.yml`):
-```yaml
-summary: "Implementar autenticación de usuarios"
-description: "Crear sistema de login con JWT y refresh tokens"
-issue_type: "Task"
-priority: "High"
-```
-
-### 4. Dar permisos de ejecución al script
-
-```bash
-chmod +x create-jira-tasks.sh
+# Configuración de directorios
+directories:
+  task_folder: "task"
+  unprocessed: "task/unprocessed"
+  processed: "task/processed"
+  without_formatting: "task/without-formatting"
+  logs: "logs"
 ```
 
 ## 🚀 Uso
 
-Ejecuta el script:
+### Crear tareas en Jira
 
-```bash
-./create-jira-tasks.sh
+1. **Crear archivos de tareas** en `task/unprocessed/{tu-email}/`:
+
+```yaml
+# task/unprocessed/tu-email@ejemplo.com/implementar-login.yml
+summary: "Implementar autenticación de usuarios"
+description: "Crear sistema de login con JWT y refresh tokens
+
+Alcance:
+- Implementar endpoint de login
+- Crear middleware de autenticación
+- Configurar refresh tokens
+- Validar credenciales
+
+Entregables:
+- Endpoint POST /auth/login
+- Middleware de autenticación
+- Documentación de API
+
+Criterios de aceptación:
+- Login funcional con email/password
+- Tokens JWT seguros
+- Refresh token automático"
+issue_type: "Task"
+priority: "High"
 ```
 
-El script:
-1. Leerá la configuración de `config.yml`
-2. Creará automáticamente las carpetas `unprocessed/{email}` y `processed/{email}`
-3. Se conectará a Jira usando tus credenciales
-4. Procesará cada archivo `.yml` en `unprocessed/{email}/`
-5. Creará las tareas en Jira
-6. Moverá los archivos procesados a `processed/{email}/` agregando timestamp al nombre (YYYY-MM-DD-HH-MM-SS)
-7. Mostrará el progreso con colores en el terminal
-8. Proporcionará enlaces directos a las tareas creadas
+2. **Ejecutar el script**:
 
-**Ejemplo de archivo procesado:**
-- Original: `implementar-login.yml`
-- Procesado: `implementar-login-2025-10-13-14-30-45.yml`
+```bash
+./create-tasks.sh
+```
+
+### Refinar tareas con OpenAI
+
+1. **Crear tareas simples** en `task/without-formatting/{tu-email}/` (solo description):
+
+```yaml
+# task/without-formatting/tu-email@ejemplo.com/tarea-simple.yml
+description: "Necesito un dashboard para mostrar estadísticas de usuarios y ventas. Debe ser fácil de usar y mostrar gráficos en tiempo real."
+```
+
+2. **Refinar con OpenAI**:
+
+```bash
+./refine-tasks.sh
+```
+
+3. **Las tareas refinadas** aparecerán en `task/unprocessed/{tu-email}/` listas para crear en Jira.
+4. **Los archivos originales** se eliminan automáticamente de `without-formatting/` después del procesamiento exitoso.
+
+## 📊 Formato de Archivos de Tarea
+
+Cada archivo `.yml` debe contener:
+
+```yaml
+summary: "Título de la tarea"
+description: "Descripción detallada con:
+- Alcance específico
+- Entregables claros
+- Criterios de aceptación"
+issue_type: "Task"  # Task, Story, Bug, Epic, etc.
+priority: "Medium"  # Highest, High, Medium, Low, Lowest
+```
+
+## 🎨 Salida del CLI
+
+El sistema usa colores para facilitar la lectura:
+
+- 🔵 **Teal**: Información general y headers
+- 🟢 **Verde**: Operaciones exitosas
+- 🔴 **Rojo**: Errores
+- 🟠 **Naranja**: Advertencias
 
 ## 📝 Sistema de Logs
 
-El script genera logs automáticamente en la carpeta `logs/`:
+- **Ubicación**: `logs/YYYY-MM-DD.log`
+- **Formato**: `[YYYY-MM-DD HH:MM:SS] [LEVEL] mensaje`
+- **Niveles**: INFO, SUCCESS, WARNING, ERROR
+- **Rotación**: Un archivo por día
 
-- **Un archivo por día**: `YYYY-MM-DD.log`
-- **Formato de línea**: `[timestamp] [LEVEL] mensaje`
-- **Niveles de log**: INFO, SUCCESS, WARN, ERROR
+## 🔄 Flujo de Trabajo
 
-**Ejemplo de log** (`logs/2025-10-13.log`):
-```
-[2025-10-13 14:30:15] [INFO] Iniciando script de creación de tareas en Jira
-[2025-10-13 14:30:15] [INFO] Archivo de log: /path/to/logs/2025-10-13.log
-[2025-10-13 14:30:16] [INFO] Configuración - URL: https://example.atlassian.net, Email: user@example.com, Proyecto: SCRUM
-[2025-10-13 14:30:16] [INFO] Procesando archivo: tarea-1.yml
-[2025-10-13 14:30:16] [INFO] Summary: Implementar login | Type: Task | Priority: High
-[2025-10-13 14:30:18] [SUCCESS] Tarea creada exitosamente - Issue Key: SCRUM-123 | Summary: Implementar login | URL: https://example.atlassian.net/browse/SCRUM-123
-[2025-10-13 14:30:18] [INFO] Archivo procesado movido: tarea-1.yml -> tarea-1-2025-10-13-14-30-18.yml
-[2025-10-13 14:30:20] [INFO] Resumen final - Tareas creadas: 1, Tareas con errores: 0
-[2025-10-13 14:30:20] [INFO] Script finalizado exitosamente
-[2025-10-13 14:30:20] [INFO] ==========================================
+1. **Crear tareas simples** en `without-formatting/` (solo description)
+2. **Refinar con OpenAI** → `unprocessed/` (archivo original se elimina)
+3. **Crear en Jira** → `processed/` (con timestamp)
 
-```
+## 🛡️ Seguridad
 
-Los logs son útiles para:
-- Auditoría de tareas creadas
-- Debugging de errores
-- Historial de ejecuciones
-- Tracking de issue keys creados
+- Las credenciales se almacenan en `config.yml` (no versionado)
+- Los logs no contienen información sensible
+- Los archivos procesados mantienen historial con timestamps
 
-## 🎨 Colores del CLI
+## 📈 Ejemplos de Uso
 
-- **Teal/Cyan** 🔵: Información general
-- **Verde** 🟢: Operaciones exitosas
-- **Rojo** 🔴: Errores
-- **Naranja** 🟠: Advertencias y warnings
+### Tarea simple refinada por OpenAI
 
-## 📊 Tipos de Issues Soportados
-
-Puedes usar cualquier tipo de issue que tenga tu proyecto Jira:
-- `Task` - Tarea
-- `Story` - Historia de usuario
-- `Bug` - Error
-- `Epic` - Épica
-- `Subtask` - Subtarea
-
-## 🎯 Prioridades Disponibles
-
-- `Highest` - Más alta
-- `High` - Alta
-- `Medium` - Media
-- `Low` - Baja
-- `Lowest` - Más baja
-
-## 👥 Múltiples Usuarios
-
-El sistema organiza las tareas por email del usuario. Si trabajas con múltiples cuentas de Jira:
-
-1. Cambia el email en `config.yml`
-2. Ejecuta el script
-3. Se creará automáticamente una nueva carpeta para ese usuario
-4. Cada usuario tiene sus propias carpetas `unprocessed/` y `processed/`
-
-## ⚠️ Notas de Seguridad
-
-- **NO** compartas el archivo `config.yml` con tus credenciales
-- Agrega `config.yml` a tu `.gitignore` si usas control de versiones
-- El API token tiene los mismos permisos que tu cuenta de Jira
-- Revoca los tokens que no uses desde tu panel de Atlassian
-- Las carpetas de tareas también están en `.gitignore` para proteger información sensible
-
-## 🔧 Ejemplo de `.gitignore`
-
-```
-config.yml
-logs/*.log
-unprocessed/*
-processed/*
+**Entrada** (`without-formatting/`):
+```yaml
+summary: "Mejorar performance"
+description: "La app va lenta"
 ```
 
-## 🐛 Solución de Problemas
+**Salida** (`unprocessed/`):
+```yaml
+summary: "Mejorar performance"
+description: "Optimizar el rendimiento de la aplicación para mejorar la experiencia del usuario.
 
-### Error: "No se encontró el archivo de configuración"
-- Asegúrate de que `config.yml` está en el mismo directorio que el script
+Alcance:
+- Identificar cuellos de botella en el código
+- Optimizar consultas a la base de datos
+- Implementar caché para consultas frecuentes
+- Reducir el tiempo de carga de páginas
 
-### Error: "No hay tareas para procesar"
-- Verifica que tienes archivos `.yml` en `unprocessed/{tu-email}/`
-- El script crea automáticamente las carpetas con tu email del `config.yml`
+Entregables:
+- Análisis de performance actual
+- Código optimizado
+- Documentación de mejoras implementadas
 
-### Error HTTP 401
-- Verifica que tu email y API token son correctos
-- Asegúrate de que el token no ha expirado
+Criterios de aceptación:
+- Tiempo de carga reducido en 50%
+- Consultas de BD optimizadas
+- Caché funcionando correctamente"
+```
 
-### Error HTTP 400
-- Revisa que el `project_key` es correcto
-- Verifica que el tipo de issue existe en tu proyecto
-- Comprueba que la prioridad es válida
+## 🤝 Contribuir
 
-### Error: "Faltan credenciales"
-- Asegúrate de que todos los campos en `config.yml` están completos
-- Verifica que no hay errores de sintaxis en el YAML
-
-### Las tareas no se mueven a processed/
-- Si hubo un error al crear la tarea, el archivo permanece en `unprocessed/` para reintentarlo
-- Revisa los mensajes de error en el terminal
-
-## 📚 Recursos
-
-- [Jira REST API Documentation](https://developer.atlassian.com/cloud/jira/platform/rest/v3/intro/)
-- [Jira API Tokens](https://id.atlassian.com/manage-profile/security/api-tokens)
+1. Fork el proyecto
+2. Crea una rama para tu feature
+3. Commit tus cambios
+4. Push a la rama
+5. Abre un Pull Request
 
 ## 📄 Licencia
 
-MIT
+Este proyecto está bajo la Licencia MIT. Ver el archivo `LICENSE` para más detalles.
 
+---
+
+**Desarrollado para automatizar la gestión de tareas en Jira**

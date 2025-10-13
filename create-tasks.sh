@@ -53,8 +53,9 @@ print_header() {
 # Directorios
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG_FILE="$SCRIPT_DIR/config.yml"
-UNPROCESSED_DIR="$SCRIPT_DIR/unprocessed"
-PROCESSED_DIR="$SCRIPT_DIR/processed"
+TASK_DIR="$SCRIPT_DIR/task"
+UNPROCESSED_DIR="$TASK_DIR/unprocessed"
+PROCESSED_DIR="$TASK_DIR/processed"
 LOGS_DIR="$SCRIPT_DIR/logs"
 
 # Crear directorio de logs si no existe
@@ -91,11 +92,11 @@ write_log "INFO" "Archivo de log: ${LOG_FILE}"
 # Leer configuración de Jira
 print_info "Leyendo configuración..."
 
-# Extraer valores del YAML usando una estrategia más simple
-JIRA_URL=$(grep "url:" "$CONFIG_FILE" | sed 's/.*url:[[:space:]]*"\([^"]*\)".*/\1/')
-JIRA_EMAIL=$(grep "email:" "$CONFIG_FILE" | sed 's/.*email:[[:space:]]*"\([^"]*\)".*/\1/')
-JIRA_TOKEN=$(grep "api_token:" "$CONFIG_FILE" | sed 's/.*api_token:[[:space:]]*"\([^"]*\)".*/\1/')
-PROJECT_KEY=$(grep "project_key:" "$CONFIG_FILE" | sed 's/.*project_key:[[:space:]]*"\([^"]*\)".*/\1/')
+# Extraer valores del YAML con la nueva estructura organizada
+JIRA_URL=$(grep -A 5 "jira:" "$CONFIG_FILE" | grep "url:" | sed 's/.*url:[[:space:]]*"\([^"]*\)".*/\1/')
+JIRA_EMAIL=$(grep -A 5 "jira:" "$CONFIG_FILE" | grep "email:" | sed 's/.*email:[[:space:]]*"\([^"]*\)".*/\1/')
+JIRA_TOKEN=$(grep -A 5 "jira:" "$CONFIG_FILE" | grep "api_token:" | sed 's/.*api_token:[[:space:]]*"\([^"]*\)".*/\1/')
+PROJECT_KEY=$(grep -A 5 "jira:" "$CONFIG_FILE" | grep "project_key:" | sed 's/.*project_key:[[:space:]]*"\([^"]*\)".*/\1/')
 
 # Validar credenciales
 if [ -z "$JIRA_URL" ] || [ -z "$JIRA_EMAIL" ] || [ -z "$JIRA_TOKEN" ] || [ -z "$PROJECT_KEY" ]; then
@@ -136,6 +137,19 @@ read_yaml_value() {
     grep "^${key}:" "$file" | cut -d'"' -f2
 }
 
+# Función para leer la descripción multilínea de un archivo YAML
+read_yaml_description() {
+    local file=$1
+    # Usar grep -A para obtener todas las líneas después de description:
+    # Luego procesar para extraer solo el contenido de la descripción
+    grep -A 100 "^description:" "$file" | \
+    sed '1s/^description:[[:space:]]*"//' | \
+    sed '/^[a-zA-Z_][a-zA-Z0-9_]*:/q' | \
+    sed '$d' | \
+    sed 's/^[[:space:]]*//' | \
+    sed '$s/"$//'
+}
+
 # Función para crear una tarea en Jira
 create_jira_issue() {
     local task_file=$1
@@ -143,7 +157,7 @@ create_jira_issue() {
     
     # Leer los datos del archivo YAML
     local summary=$(read_yaml_value "$task_file" "summary")
-    local description=$(read_yaml_value "$task_file" "description")
+    local description=$(read_yaml_description "$task_file")
     local issue_type=$(read_yaml_value "$task_file" "issue_type")
     local priority=$(read_yaml_value "$task_file" "priority")
     
@@ -164,29 +178,36 @@ create_jira_issue() {
     write_log "INFO" "Summary: ${summary} | Type: ${issue_type} | Priority: ${priority}"
     
     # Preparar el JSON para la API de Jira
-    # Escapar comillas y saltos de línea en los textos
-    summary_escaped=$(echo "$summary" | sed 's/"/\\"/g' | tr '\n' ' ')
-    description_escaped=$(echo "$description" | sed 's/"/\\"/g' | tr '\n' ' ')
+    # Escapar comillas en el summary
+    summary_escaped=$(echo "$summary" | sed 's/"/\\"/g')
     
-    # Crear descripción en formato Atlassian Document Format (ADF)
-    DESCRIPTION_ADF=$(cat <<EOF
-{
-  "type": "doc",
-  "version": 1,
-  "content": [
-    {
-      "type": "paragraph",
-      "content": [
-        {
-          "type": "text",
-          "text": "${description_escaped}"
-        }
-      ]
-    }
-  ]
-}
-EOF
-)
+    # Crear descripción en formato ADF - método con archivo temporal
+    # Usar archivo temporal para manejar correctamente los saltos de línea
+    TEMP_FILE=$(mktemp)
+    echo "$description" > "$TEMP_FILE"
+    
+    DESCRIPTION_ADF='{"type":"doc","version":1,"content":['
+    
+    # Procesar cada línea del archivo temporal
+    first_line=true
+    while IFS= read -r line; do
+        if [ "$first_line" = true ]; then
+            first_line=false
+        else
+            DESCRIPTION_ADF="${DESCRIPTION_ADF},"
+        fi
+        
+        # Escapar comillas en la línea
+        escaped_line=$(echo "$line" | sed 's/"/\\"/g')
+        
+        # Agregar párrafo ADF
+        DESCRIPTION_ADF="${DESCRIPTION_ADF}{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"${escaped_line}\"}]}"
+    done < "$TEMP_FILE"
+    
+    DESCRIPTION_ADF="${DESCRIPTION_ADF}]}"
+    
+    # Limpiar archivo temporal
+    rm "$TEMP_FILE"
     
     JSON_PAYLOAD=$(cat <<EOF
 {
