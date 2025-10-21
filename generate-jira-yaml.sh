@@ -179,11 +179,27 @@ parse_description_and_subtasks() {
     
     local main_description=""
     local subtasks=()
+    local in_subtask_section=0
     
     # Leer línea por línea
     while IFS= read -r line; do
-        # Detectar si es un elemento de lista numerada (1., 2., 3., etc.)
-        if [[ "$line" =~ ^[[:space:]]*[0-9]+\.[[:space:]]+ ]]; then
+        # Detectar inicio de secciones que contienen subtareas
+        if [[ "$line" =~ ^[[:space:]]*(Alcance|Criterios de aceptación|Entregables)[[:space:]]*$ ]]; then
+            in_subtask_section=1
+            main_description="${main_description}\n${line}"
+            continue
+        fi
+        
+        # Detectar fin de secciones de subtareas (próxima sección o fin del texto)
+        if [[ "$line" =~ ^[[:space:]]*(Descripción y Objetivo|Alcance|Criterios de aceptación|Entregables)[[:space:]]*$ ]] && [ $in_subtask_section -eq 1 ]; then
+            # Si ya estamos en una sección de subtareas y encontramos otra sección, 
+            # continuar procesando subtareas
+            main_description="${main_description}\n${line}"
+            continue
+        fi
+        
+        # Si estamos en una sección de subtareas y es una lista numerada
+        if [ $in_subtask_section -eq 1 ] && [[ "$line" =~ ^[[:space:]]*[0-9]+\.[[:space:]]+ ]]; then
             # Extraer el texto después del número
             local subtask_text=$(echo "$line" | sed 's/^[[:space:]]*[0-9]\+\.\s*//')
             subtasks+=("$subtask_text")
