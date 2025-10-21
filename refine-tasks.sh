@@ -176,23 +176,62 @@ refine_task() {
     write_log "INFO" "Procesando archivo: $task_name.yml"
     write_log "INFO" "Description: ${description:0:100}..."
     
-    # Crear prompt para OpenAI (simplificado)
+    # Crear prompt para OpenAI con template específico para subtareas
     local prompt="Refina esta descripción de tarea para Jira:
 
 $description
 
-Genera una tarea completa con:
-TÍTULO: [título claro]
+Genera una tarea completa siguiendo este formato específico:
+
+TÍTULO: [título claro y conciso]
 TIPO: [Task/Story/Bug/Epic]
 PRIORIDAD: [Highest/High/Medium/Low/Lowest]
-DESCRIPCIÓN: [descripción detallada con alcance, entregables y criterios de aceptación]
+DESCRIPCIÓN: [descripción estructurada con las siguientes secciones:]
+
+Descripción y Objetivo
+[Descripción detallada del requerimiento y objetivo principal]
+
+Alcance
+[Lista numerada (1., 2., 3., etc.) de SUBTAREAS ESPECÍFICAS Y NO REDUNDANTES que se pueden extraer del requerimiento principal. Cada subtarea debe ser una tarea concreta y específica que contribuya al cumplimiento del objetivo principal. Evita repetir información entre subtareas.]
+
+Criterios de aceptación
+[Lista numerada (1., 2., 3., etc.) de condiciones específicas que deben cumplirse para considerar la tarea completada]
+
+Entregables
+[Lista numerada (1., 2., 3., etc.) de lo que se debe entregar]
+
+IMPORTANTE: Las subtareas en el Alcance deben ser:
+- Específicas y concretas
+- No redundantes entre sí
+- Extraíbles como tareas independientes
+- Contribuyentes al objetivo principal
+- Enumeradas con números (1., 2., 3., etc.)
 
 Formato de respuesta:
 TÍTULO: [título]
 TIPO: [tipo]
 PRIORIDAD: [prioridad]
 DESCRIPCIÓN:
-[descripción estructurada con alcance, entregables y criterios]"
+Descripción y Objetivo
+[descripción]
+
+Alcance
+1. [Primera subtarea específica y concreta]
+2. [Segunda subtarea específica y concreta]
+3. [Tercera subtarea específica y concreta]
+[etc...]
+
+Criterios de aceptación
+1. [Primer criterio específico]
+2. [Segundo criterio específico]
+3. [Tercer criterio específico]
+[etc...]
+
+Entregables
+1. [Primer entregable específico]
+2. [Segundo entregable específico]
+3. [Tercer entregable específico]
+[etc...]"
 
     print_info "Enviando a OpenAI para refinamiento..."
     write_log "INFO" "Enviando tarea a OpenAI API para refinamiento"

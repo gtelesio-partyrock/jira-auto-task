@@ -1,9 +1,11 @@
 #!/bin/bash
 
 ##############################################################################
-# Script para crear tareas en Jira automáticamente
-# Lee tareas individuales desde la carpeta 'unprocessed/'
-# Después de procesarlas, las mueve a 'processed/'
+# Script para generar archivos YAML compatibles con Jira Y crear tareas
+# Lee tareas desde la carpeta 'unprocessed/' y:
+# 1. Genera archivos YAML en formato compatible con Jira
+# 2. Crea las tareas directamente en Jira
+# 3. Crea las subtareas automáticamente
 ##############################################################################
 
 # Colores para el CLI
@@ -56,38 +58,23 @@ CONFIG_FILE="$SCRIPT_DIR/config.yml"
 TASK_DIR="$SCRIPT_DIR/task"
 UNPROCESSED_DIR="$TASK_DIR/unprocessed"
 PROCESSED_DIR="$TASK_DIR/processed"
+JIRA_COMPATIBLE_DIR="$TASK_DIR/jira-compatible"
 LOGS_DIR="$SCRIPT_DIR/logs"
 
-# Crear directorio de logs si no existe
+# Crear directorios si no existen
+mkdir -p "$JIRA_COMPATIBLE_DIR"
 mkdir -p "$LOGS_DIR"
 
 # Archivo de log del día
 LOG_FILE="$LOGS_DIR/$(date +"%Y-%m-%d").log"
+
+write_log "INFO" "Iniciando script de generación YAML y creación de tareas en Jira"
 
 # Verificar que existe el archivo de configuración
 if [ ! -f "$CONFIG_FILE" ]; then
     print_error "No se encontró el archivo de configuración: $CONFIG_FILE"
     exit 1
 fi
-
-# Verificar que existen los directorios
-if [ ! -d "$UNPROCESSED_DIR" ]; then
-    print_warning "No existe la carpeta 'unprocessed/', creándola..."
-    mkdir -p "$UNPROCESSED_DIR"
-fi
-
-if [ ! -d "$PROCESSED_DIR" ]; then
-    print_warning "No existe la carpeta 'processed/', creándola..."
-    mkdir -p "$PROCESSED_DIR"
-fi
-
-print_header "═══════════════════════════════════════════════════════"
-print_header "    🚀 Jira Auto Task Creator"
-print_header "═══════════════════════════════════════════════════════"
-echo ""
-
-write_log "INFO" "Iniciando script de creación de tareas en Jira"
-write_log "INFO" "Archivo de log: ${LOG_FILE}"
 
 # Leer configuración de Jira
 print_info "Leyendo configuración..."
@@ -130,6 +117,11 @@ fi
 # Crear autenticación base64
 AUTH=$(echo -n "${JIRA_EMAIL}:${JIRA_TOKEN}" | base64)
 
+print_header "═══════════════════════════════════════════════════════"
+print_header "    🚀 Generador YAML + Creador de Tareas Jira"
+print_header "═══════════════════════════════════════════════════════"
+echo ""
+
 # Función para leer un valor de un archivo YAML
 read_yaml_value() {
     local file=$1
@@ -141,11 +133,31 @@ read_yaml_value() {
 read_yaml_description() {
     local file=$1
     
-    # Usar grep para extraer la descripción preservando saltos de línea
-    local raw_description=$(grep -A 100 '^description:' "$file" | \
-    sed '1s/^description:[[:space:]]*"//' | \
-    sed '/^[a-zA-Z_][a-zA-Z0-9_]*:[[:space:]]*[^"]/,$d' | \
-    sed '$s/"$//')
+    # Usar un enfoque simple: extraer líneas entre description: y el siguiente campo
+    local raw_description=""
+    local in_description=0
+    
+    while IFS= read -r line; do
+        if [[ "$line" =~ ^description:[[:space:]]* ]]; then
+            in_description=1
+            # Extraer el contenido después de description: "
+            raw_description=$(echo "$line" | sed 's/^description:[[:space:]]*"//')
+            continue
+        fi
+        
+        # Si estamos en la descripción y encontramos el siguiente campo, parar
+        if [ $in_description -eq 1 ] && [[ "$line" =~ ^issue_type: ]] || [[ "$line" =~ ^priority: ]]; then
+            break
+        fi
+        
+        # Si estamos en la descripción, agregar la línea
+        if [ $in_description -eq 1 ]; then
+            raw_description="${raw_description}${line}"$'\n'
+        fi
+    done < "$file"
+    
+    # Quitar la comilla final si existe
+    raw_description=$(echo "$raw_description" | sed 's/"$//')
     
     # Eliminar prefijos de OpenAI: TÍTULO:, TIPO:, PRIORIDAD:, DESCRIPCIÓN:
     raw_description=$(echo "$raw_description" | \
@@ -198,60 +210,6 @@ parse_description_and_subtasks() {
     echo "$result"
 }
 
-# Función para crear una subtarea en Jira
-create_jira_subtask() {
-    local parent_key=$1
-    local subtask_summary=$2
-    local project_key=$3
-    local auth=$4
-    local jira_url=$5
-    
-    # Escapar comillas en el summary
-    local summary_escaped=$(echo "$subtask_summary" | sed 's/"/\\"/g')
-    
-    # Crear descripción simple para la subtarea
-    local description_adf='{"type":"doc","version":1,"content":[{"type":"paragraph","content":[{"type":"text","text":"Subtarea del requerimiento principal"}]}]}'
-    
-    local json_payload=$(cat <<EOF
-{
-  "fields": {
-    "project": {
-      "key": "${project_key}"
-    },
-    "summary": "${summary_escaped}",
-    "description": ${description_adf},
-    "issuetype": {
-      "name": "Sub-task"
-    },
-    "parent": {
-      "key": "${parent_key}"
-    }
-  }
-}
-EOF
-)
-    
-    # Hacer la petición a la API de Jira
-    local response=$(curl -s -w "\n%{http_code}" \
-        -X POST \
-        -H "Authorization: Basic ${auth}" \
-        -H "Content-Type: application/json" \
-        -d "${json_payload}" \
-        "${jira_url}/rest/api/3/issue")
-    
-    # Separar el código de estado HTTP
-    local http_code=$(echo "$response" | tail -n1)
-    local body=$(echo "$response" | sed '$d')
-    
-    if [ "$http_code" -eq 201 ]; then
-        local subtask_key=$(echo "$body" | grep -o '"key":"[^"]*' | sed 's/"key":"//')
-        echo "$subtask_key"
-        return 0
-    else
-        return 1
-    fi
-}
-
 # Función para generar archivo YAML compatible con Jira
 generate_jira_compatible_yaml() {
     local task_file=$1
@@ -264,7 +222,7 @@ generate_jira_compatible_yaml() {
     local priority=$(read_yaml_value "$task_file" "priority")
     
     # Valores por defecto
-    issue_type=${issue_type:-"Task"}
+    issue_type=${issue_type:-"Story"}
     priority=${priority:-"Medium"}
     
     # Separar descripción principal de subtareas
@@ -302,6 +260,81 @@ EOF
     echo "Archivo YAML compatible generado: $output_file"
 }
 
+# Función para crear una subtarea en Jira
+create_jira_subtask() {
+    local parent_key=$1
+    local subtask_summary=$2
+    local project_key=$3
+    local auth=$4
+    local jira_url=$5
+    
+    # Escapar comillas en el summary
+    local summary_escaped=$(echo "$subtask_summary" | sed 's/"/\\"/g')
+    
+    # Crear descripción simple para la subtarea
+    local description_adf='{"type":"doc","version":1,"content":[{"type":"paragraph","content":[{"type":"text","text":"Subtarea del requerimiento principal"}]}]}'
+    
+    local json_payload=$(cat <<EOF
+{
+  "fields": {
+    "project": {
+      "key": "${project_key}"
+    },
+    "summary": "${summary_escaped}",
+    "description": ${description_adf},
+    "issuetype": {
+      "id": "10002"
+    },
+    "parent": {
+      "key": "${parent_key}"
+    }
+  }
+}
+EOF
+)
+    
+    write_log "DEBUG" "Creando subtarea: ${subtask_summary}"
+    write_log "DEBUG" "Parent Key: ${parent_key}"
+    write_log "DEBUG" "Project Key: ${project_key}"
+    write_log "DEBUG" "JSON Payload: ${json_payload}"
+    
+    # Hacer la petición a la API de Jira
+    local response=$(curl -s -w "\n%{http_code}" \
+        -X POST \
+        -H "Authorization: Basic ${auth}" \
+        -H "Content-Type: application/json" \
+        -d "${json_payload}" \
+        "${jira_url}/rest/api/3/issue")
+    
+    # Separar el código de estado HTTP
+    local http_code=$(echo "$response" | tail -n1)
+    local body=$(echo "$response" | sed '$d')
+    
+    write_log "DEBUG" "HTTP Code: ${http_code}"
+    write_log "DEBUG" "Response Body: ${body}"
+    
+    if [ "$http_code" -eq 201 ]; then
+        local subtask_key=$(echo "$body" | grep -o '"key":"[^"]*' | sed 's/"key":"//')
+        write_log "SUCCESS" "Subtarea creada exitosamente: ${subtask_key}"
+        echo "$subtask_key"
+        return 0
+    else
+        write_log "ERROR" "Error al crear subtarea - HTTP ${http_code}"
+        write_log "ERROR" "Response: ${body}"
+        
+        # Intentar mostrar el mensaje de error de Jira
+        local error_msg=$(echo "$body" | grep -o '"errorMessages":\[[^]]*\]' | sed 's/"errorMessages":\[//;s/\]//')
+        if [ -z "$error_msg" ]; then
+            error_msg=$(echo "$body" | grep -o '"message":"[^"]*' | sed 's/"message":"//')
+        fi
+        if [ ! -z "$error_msg" ]; then
+            write_log "ERROR" "Mensaje de Jira: ${error_msg}"
+        fi
+        
+        return 1
+    fi
+}
+
 # Función para crear una tarea en Jira
 create_jira_issue() {
     local task_file=$1
@@ -314,7 +347,7 @@ create_jira_issue() {
     local priority=$(read_yaml_value "$task_file" "priority")
     
     # Valores por defecto
-    issue_type=${issue_type:-"Task"}
+    issue_type=${issue_type:-"Story"}
     priority=${priority:-"Medium"}
     raw_description=${raw_description:-"Sin descripción"}
     
@@ -359,7 +392,7 @@ create_jira_issue() {
     echo "$main_description" > "$TEMP_FILE"
     
     DESCRIPTION_ADF='{"type":"doc","version":1,"content":['
-
+    
     # Procesar cada línea del archivo temporal
     first_paragraph=true
     previous_was_list_item=false
@@ -474,16 +507,16 @@ EOF
         NEW_FILE_NAME="${FILE_NAME}-${TIMESTAMP}.yml"
         JIRA_COMPATIBLE_NAME="${FILE_NAME}-jira-compatible-${TIMESTAMP}.yml"
         
-        # Generar archivo YAML compatible con Jira
-        generate_jira_compatible_yaml "$task_file" "$USER_PROCESSED_DIR/${JIRA_COMPATIBLE_NAME}"
+        # Generar archivo YAML compatible con Jira (comentado - no necesario)
+        # generate_jira_compatible_yaml "$task_file" "$JIRA_COMPATIBLE_DIR/${JIRA_COMPATIBLE_NAME}"
         
         # Mover el archivo original a la carpeta processed del usuario con timestamp
         mv "$task_file" "$USER_PROCESSED_DIR/${NEW_FILE_NAME}"
         print_success "Archivo movido a processed/${JIRA_EMAIL}/${NEW_FILE_NAME}"
-        print_success "Archivo YAML compatible generado: ${JIRA_COMPATIBLE_NAME}"
+        # print_success "Archivo YAML compatible generado: ${JIRA_COMPATIBLE_NAME}"
         
         write_log "INFO" "Archivo procesado movido: ${task_name} -> ${NEW_FILE_NAME}"
-        write_log "INFO" "Archivo YAML compatible generado: ${JIRA_COMPATIBLE_NAME}"
+        # write_log "INFO" "Archivo YAML compatible generado: ${JIRA_COMPATIBLE_NAME}"
         write_log "INFO" "Resumen: Tarea principal + ${subtasks_created} subtareas creadas"
         
         return 0
@@ -513,7 +546,7 @@ EOF
     fi
 }
 
-# Contar archivos en unprocessed del usuario
+# Buscar archivos en unprocessed del usuario
 TASK_FILES=("$USER_UNPROCESSED_DIR"/*.yml)
 TASK_COUNT=0
 
@@ -528,7 +561,7 @@ if [ $TASK_COUNT -eq 0 ]; then
     echo ""
     echo "  summary: \"Nombre de la tarea\""
     echo "  description: \"Descripción detallada\""
-    echo "  issue_type: \"Task\""
+    echo "  issue_type: \"Story\""
     echo "  priority: \"Medium\""
     echo ""
     exit 0
@@ -573,6 +606,7 @@ fi
 
 echo ""
 print_info "Tareas procesadas movidas a: ${BOLD}processed/${JIRA_EMAIL}/${NC}"
+# print_info "Archivos YAML compatibles generados en: ${BOLD}jira-compatible/${NC}"
 print_info "Revisa las tareas en Jira: ${JIRA_URL}/browse/${PROJECT_KEY}"
 print_info "Log guardado en: ${BOLD}${LOG_FILE}${NC}"
 echo ""

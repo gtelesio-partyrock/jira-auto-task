@@ -1,11 +1,13 @@
 # 🚀 Jira Auto Task Creator
 
-Sistema completo para la gestión automatizada de tareas en Jira con integración de OpenAI para refinamiento de requerimientos.
+Sistema completo para la gestión automatizada de tareas en Jira con integración de OpenAI para refinamiento de requerimientos y creación automática de subtareas reales.
 
 ## 📋 Características
 
 - ✅ **Creación automática de tareas en Jira** desde archivos YAML
+- 🎯 **Subtareas reales** - Crea Stories con subtareas verdaderas en Jira
 - 🤖 **Refinamiento con OpenAI** para mejorar descripciones de tareas
+- 📝 **Template optimizado** - Genera subtareas específicas y no redundantes
 - 🔐 **Configuración segura** mediante archivo YAML organizado
 - 👤 **Organización por usuario** (email) en carpetas separadas
 - 📁 **Sistema de carpetas** unprocessed/processed/without-formatting
@@ -14,6 +16,7 @@ Sistema completo para la gestión automatizada de tareas en Jira con integració
 - 📊 **Resumen detallado** de operaciones realizadas
 - ⚡ **Soporte completo** para tipos de issues (Task, Story, Bug, Epic, etc.)
 - 🎯 **Configuración de prioridades** personalizable
+- 🔗 **Jerarquía real** - Subtareas vinculadas a la tarea principal
 
 ## 🏗️ Estructura del Proyecto
 
@@ -35,7 +38,8 @@ jira-auto-task/
 │   ├── 📄 2025-10-13.log
 │   └── 📄 2025-10-14.log
 ├── 📄 initialize.sh                  # Script de inicialización
-├── 📄 create-tasks.sh                # Script principal para crear tareas
+├── 📄 generate-jira-yaml.sh          # Script principal para crear tareas y subtareas
+├── 📄 create-tasks.sh                # Script original (respaldo)
 ├── 📄 refine-tasks.sh                # Script para refinar con OpenAI
 ├── 📄 config.yml                     # Configuración principal (credenciales)
 ├── 📄 config-example.yml             # Ejemplo de configuración
@@ -52,8 +56,9 @@ jira-auto-task/
 ### 🔧 Scripts Disponibles
 
 - **`initialize.sh`**: Script de inicialización que verifica e instala todas las dependencias necesarias.
-- **`create-tasks.sh`**: Script principal que lee tareas de `unprocessed/` y las crea en Jira.
-- **`refine-tasks.sh`**: Refina tareas de `without-formatting/` usando OpenAI y las guarda en `unprocessed/`.
+- **`generate-jira-yaml.sh`**: Script principal que crea Stories con subtareas reales en Jira.
+- **`create-tasks.sh`**: Script original (mantenido como respaldo).
+- **`refine-tasks.sh`**: Refina tareas de `without-formatting/` usando OpenAI con template optimizado.
 
 ## 🛠️ Requisitos
 
@@ -130,47 +135,61 @@ directories:
 
 ## 🚀 Uso
 
-### Crear tareas en Jira
+### Crear tareas con subtareas reales en Jira
 
 1. **Crear archivos de tareas** en `task/unprocessed/{tu-email}/`:
 
 ```yaml
-# task/unprocessed/tu-email@ejemplo.com/implementar-login.yml
-summary: "Implementar autenticación de usuarios"
-description: "Crear sistema de login con JWT y refresh tokens
+# task/unprocessed/tu-email@ejemplo.com/implementar-microservicio-usuarios.yml
+summary: "Implementar Microservicio de Gestión de Usuarios"
+description: "Descripción y Objetivo:
+Desarrollar un microservicio completo para la gestión de usuarios del sistema.
 
 Alcance:
-- Implementar endpoint de login
-- Crear middleware de autenticación
-- Configurar refresh tokens
-- Validar credenciales
-
-Entregables:
-- Endpoint POST /auth/login
-- Middleware de autenticación
-- Documentación de API
+1. Crear API REST para CRUD de usuarios.
+2. Implementar sistema de autenticación JWT.
+3. Desarrollar middleware de autorización por roles.
+4. Crear base de datos de usuarios con PostgreSQL.
+5. Implementar validaciones de datos de entrada.
+6. Crear documentación de la API con Swagger.
+7. Desarrollar tests unitarios y de integración.
+8. Configurar logging y monitoreo.
 
 Criterios de aceptación:
-- Login funcional con email/password
-- Tokens JWT seguros
-- Refresh token automático"
-issue_type: "Task"
+1. La API debe responder en menos de 200ms para operaciones de lectura.
+2. El sistema debe soportar hasta 1000 usuarios concurrentes.
+3. Las contraseñas deben encriptarse con bcrypt.
+4. Los tokens JWT deben expirar en 24 horas.
+5. Debe incluir roles: admin, user, moderator.
+6. Las validaciones deben cubrir email, teléfono y datos personales.
+7. La documentación debe estar disponible en /docs.
+8. Los tests deben tener cobertura mínima del 90%.
+
+Entregables:
+1. Código fuente del microservicio.
+2. Documentación Swagger de la API.
+3. Tests unitarios y de integración.
+4. Configuración de base de datos.
+5. Sistema de logging y monitoreo."
+issue_type: "Story"
 priority: "High"
 ```
 
-2. **Ejecutar el script**:
+2. **Ejecutar el script principal**:
 
 ```bash
-./create-tasks.sh
+./generate-jira-yaml.sh
 ```
 
-### Refinar tareas con OpenAI
+3. **Resultado**: Se creará una Story principal con subtareas reales vinculadas en Jira.
+
+### Refinar tareas con OpenAI (Template Optimizado)
 
 1. **Crear tareas simples** en `task/without-formatting/{tu-email}/` (solo description):
 
 ```yaml
 # task/without-formatting/tu-email@ejemplo.com/tarea-simple.yml
-description: "Necesito un dashboard para mostrar estadísticas de usuarios y ventas. Debe ser fácil de usar y mostrar gráficos en tiempo real."
+description: "Desarrollar sistema de gestión de eventos para PartyRock que incluya creación de eventos, gestión de tickets, sistema de pagos, chat en tiempo real, notificaciones push, geolocalización, categorización de eventos, sistema de calificaciones, reportes de analytics, integración con redes sociales, sistema de invitaciones, gestión de horarios, validación de capacidad, sistema de descuentos y promociones."
 ```
 
 2. **Refinar con OpenAI**:
@@ -179,21 +198,46 @@ description: "Necesito un dashboard para mostrar estadísticas de usuarios y ven
 ./refine-tasks.sh
 ```
 
-3. **Las tareas refinadas** aparecerán en `task/unprocessed/{tu-email}/` listas para crear en Jira.
-4. **Los archivos originales** se eliminan automáticamente de `without-formatting/` después del procesamiento exitoso.
+3. **Resultado**: El template optimizado genera:
+   - **Descripción y Objetivo** - Texto descriptivo
+   - **Alcance** - Lista numerada de subtareas específicas y no redundantes
+   - **Criterios de aceptación** - Lista numerada de condiciones
+   - **Entregables** - Lista numerada de entregables
+
+4. **Las tareas refinadas** aparecerán en `task/unprocessed/{tu-email}/` listas para crear en Jira.
+5. **Los archivos originales** se eliminan automáticamente de `without-formatting/` después del procesamiento exitoso.
 
 ## 📊 Formato de Archivos de Tarea
 
-Cada archivo `.yml` debe contener:
+### Formato Estándar (para crear directamente en Jira)
 
 ```yaml
 summary: "Título de la tarea"
-description: "Descripción detallada con:
-- Alcance específico
-- Entregables claros
-- Criterios de aceptación"
-issue_type: "Task"  # Task, Story, Bug, Epic, etc.
-priority: "Medium"  # Highest, High, Medium, Low, Lowest
+description: "Descripción y Objetivo:
+[Descripción detallada del requerimiento y objetivo principal]
+
+Alcance:
+1. [Primera subtarea específica]
+2. [Segunda subtarea específica]
+3. [Tercera subtarea específica]
+
+Criterios de aceptación:
+1. [Primer criterio específico]
+2. [Segundo criterio específico]
+3. [Tercer criterio específico]
+
+Entregables:
+1. [Primer entregable específico]
+2. [Segundo entregable específico]
+3. [Tercer entregable específico]"
+issue_type: "Story"  # Story para permitir subtareas reales
+priority: "High"     # Highest, High, Medium, Low, Lowest
+```
+
+### Formato Simple (para refinar con OpenAI)
+
+```yaml
+description: "Descripción simple del requerimiento que será refinada por OpenAI"
 ```
 
 ## 🎨 Salida del CLI
@@ -214,9 +258,20 @@ El sistema usa colores para facilitar la lectura:
 
 ## 🔄 Flujo de Trabajo
 
+### Opción 1: Flujo Completo con OpenAI
 1. **Crear tareas simples** en `without-formatting/` (solo description)
 2. **Refinar con OpenAI** → `unprocessed/` (archivo original se elimina)
-3. **Crear en Jira** → `processed/` (con timestamp)
+3. **Crear Story con subtareas** → `processed/` (con timestamp)
+
+### Opción 2: Flujo Directo
+1. **Crear tareas completas** en `unprocessed/` (formato estándar)
+2. **Crear Story con subtareas** → `processed/` (con timestamp)
+
+### Resultado Final
+- ✅ **Story principal** creada en Jira
+- ✅ **Subtareas reales** vinculadas a la Story
+- ✅ **Jerarquía correcta** en Jira
+- ✅ **Archivos procesados** movidos a `processed/`
 
 ## 🛡️ Seguridad
 
@@ -224,36 +279,74 @@ El sistema usa colores para facilitar la lectura:
 - Los logs no contienen información sensible
 - Los archivos procesados mantienen historial con timestamps
 
+## 🆕 Mejoras Implementadas
+
+### ✅ Subtareas Reales en Jira
+- **Stories con subtareas verdaderas** - No más tareas independientes con prefijos
+- **Jerarquía correcta** - Subtareas vinculadas a la Story principal
+- **ID correcto** - Usa el tipo de issue "Subtask" (ID: 10002) de Jira
+- **Navegación fácil** - Estructura clara en la interfaz de Jira
+
+### ✅ Template Optimizado de OpenAI
+- **Subtareas específicas** - Genera tareas concretas y no redundantes
+- **Numeración consistente** - Todas las secciones usan listas numeradas
+- **Formato estructurado** - Descripción y Objetivo, Alcance, Criterios, Entregables
+- **Extraíbles** - Cada subtarea puede ser una tarea independiente
+
+### ✅ Scripts Optimizados
+- **`generate-jira-yaml.sh`** - Script principal para crear Stories con subtareas
+- **`refine-tasks.sh`** - Template mejorado para OpenAI
+- **`create-tasks.sh`** - Mantenido como respaldo
+- **Eliminación de archivos innecesarios** - No genera archivos YAML compatibles
+
 ## 📈 Ejemplos de Uso
 
 ### Tarea simple refinada por OpenAI
 
 **Entrada** (`without-formatting/`):
 ```yaml
-summary: "Mejorar performance"
-description: "La app va lenta"
+description: "Implementar sistema de notificaciones en tiempo real para PartyRock que incluya notificaciones push, email, SMS, webhooks, configuración de preferencias de usuario, plantillas personalizables, programación de envíos, tracking de entregas, analytics de engagement, integración con servicios externos, sistema de colas, retry automático, logging detallado y dashboard de administración."
 ```
 
 **Salida** (`unprocessed/`):
 ```yaml
-summary: "Mejorar performance"
-description: "Optimizar el rendimiento de la aplicación para mejorar la experiencia del usuario.
+summary: "Implementación del sistema de notificaciones en tiempo real para PartyRock"
+description: "Descripción y Objetivo:
+El objetivo es desarrollar e implementar un sistema de notificaciones en tiempo real para PartyRock para mejorar la comunicación con los usuarios y aumentar su compromiso.
 
 Alcance:
-- Identificar cuellos de botella en el código
-- Optimizar consultas a la base de datos
-- Implementar caché para consultas frecuentes
-- Reducir el tiempo de carga de páginas
-
-Entregables:
-- Análisis de performance actual
-- Código optimizado
-- Documentación de mejoras implementadas
+1. Diseño de la arquitectura del sistema de notificaciones.
+2. Implementar notificaciones push.
+3. Implementar notificaciones por email.
+4. Implementar notificaciones por SMS.
+5. Implementar webhooks.
+6. Crear sistema de configuración de preferencias de usuario.
+7. Implementar plantillas personalizables de notificaciones.
+8. Crear sistema de programación de envío de notificaciones.
+9. Implementar el tracking de entregas.
+10. Implementar analytics de engagement.
+11. Integrar con servicios externos.
+12. Diseñar e implementar sistema de colas.
+13. Implementar retry automático.
+14. Implementar logging detallado.
+15. Crear dashboard de administración.
 
 Criterios de aceptación:
-- Tiempo de carga reducido en 50%
-- Consultas de BD optimizadas
-- Caché funcionando correctamente"
+1. Las notificaciones push, email, SMS, y webhooks son enviadas correctamente.
+2. Los usuarios pueden configurar sus preferencias de notificaciones.
+3. Las plantillas de notificaciones pueden ser personalizadas.
+4. El sistema de programación de envío de notificaciones funciona correctamente.
+5. El tracking de entregas y analytics de engagement están correctamente implementados.
+6. El sistema de colas, retry automático y logging detallado funcionan correctamente.
+7. El dashboard de administración permite un control y seguimiento adecuado del sistema.
+
+Entregables:
+1. Documentación detallada del diseño de la arquitectura del sistema.
+2. Código fuente de la implementación del sistema de notificaciones.
+3. Documentación y manual del usuario para la configuración de preferencias y uso del sistema.
+4. Informes de pruebas y resultados que demuestren el correcto funcionamiento del sistema."
+issue_type: "Epic"
+priority: "High"
 ```
 
 ## 🤝 Contribuir
@@ -270,4 +363,12 @@ Este proyecto está bajo la Licencia MIT. Ver el archivo `LICENSE` para más det
 
 ---
 
-**Desarrollado para automatizar la gestión de tareas en Jira**
+**Desarrollado para automatizar la gestión de tareas en Jira con subtareas reales y refinamiento inteligente con OpenAI**
+
+## 🎯 Características Principales
+
+- 🎯 **Subtareas Reales** - Crea Stories con subtareas verdaderas en Jira
+- 🤖 **IA Optimizada** - Template mejorado para generar subtareas específicas
+- 🔗 **Jerarquía Correcta** - Subtareas vinculadas a la Story principal
+- 📝 **Formato Estructurado** - Alcance, Criterios y Entregables numerados
+- ⚡ **Flujo Eficiente** - Desde descripción simple hasta tareas en Jira
